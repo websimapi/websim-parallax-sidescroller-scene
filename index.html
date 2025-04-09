@@ -26,6 +26,7 @@
             width: 100%;
             height: 100%;
             background-repeat: repeat-x;
+            will-change: transform;
             image-rendering: pixelated; /* Makes images look more retro/pixelated */
         }
         
@@ -174,6 +175,12 @@
         let posX = 0;
         let playerSpeed = 5;
         let keys = {};
+        let imageSizes = {
+            background: 0,
+            midBackground: 0, 
+            midground: 0,
+            foreground: 0
+        };
         
         // Layer speeds (different for parallax effect)
         const layerSpeeds = {
@@ -250,36 +257,63 @@
             });
         }
         
+        // Function to get image dimensions
+        function getImageDimensions(imageUrl) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    resolve({width: img.width, height: img.height});
+                };
+                img.onerror = () => {
+                    reject(new Error('Failed to load image'));
+                };
+                img.src = imageUrl;
+            });
+        }
+        
         // Generate images for each layer
         async function generateLayers() {
             try {
                 loadingStatus.textContent = "GENERATING BACKGROUND LAYER...";
                 const backgroundImg = await websim.imageGen({
-                    prompt: "High-resolution 8-bit pixel art retro game background with distant mountains and night sky with stars, low color palette (4-8 colors), absolutely perfectly tileable horizontally with exactly matching left and right edges for seamless repetition, wide panoramic view, NES or SNES style",
-                    width: 1024,
-                    height: 576, // 16:9 ratio with higher resolution
+                    prompt: "8-bit pixel art retro game background with distant mountains and night sky with stars, low color palette (4-8 colors), perfectly tileable horizontally with matching left and right edges, seamless repeating pattern, NES or SNES style",
+                    aspect_ratio: "16:9",
+                    seed: 1234, // Using a fixed seed for consistent generation
                 });
                 
                 loadingStatus.textContent = "GENERATING MID-BACKGROUND LAYER...";
                 const midBackgroundImg = await websim.imageGen({
-                    prompt: "High-resolution 8-bit pixel art retro game mid-background with silhouetted pine trees and rock formations, absolutely perfectly tileable horizontally with exactly matching left and right edges for seamless repetition, wide panoramic view, low color palette (4-8 colors), NES or SNES style",
-                    width: 1024,
-                    height: 576,
+                    prompt: "8-bit pixel art retro game mid-background with silhouetted pine trees and rock formations, perfectly tileable horizontally with matching left and right edges, seamless repeating pattern, low color palette (4-8 colors), NES or SNES style",
+                    aspect_ratio: "16:9",
+                    seed: 2345,
                 });
                 
                 loadingStatus.textContent = "GENERATING MIDGROUND LAYER...";
                 const midgroundImg = await websim.imageGen({
-                    prompt: "High-resolution 8-bit pixel art retro game midground with platforms, grass and rocks in classic platformer style, absolutely perfectly tileable horizontally with exactly matching left and right edges for seamless repetition, wide panoramic view, clear pixel art style, Super Mario Bros or Mega Man inspired, low color palette (8-16 colors)",
-                    width: 1024,
-                    height: 576,
+                    prompt: "8-bit pixel art retro game midground with platforms, grass and rocks in classic platformer style, perfectly tileable horizontally with matching left and right edges, seamless repeating pattern, clear pixel art style, Super Mario Bros or Mega Man inspired, low color palette (8-16 colors)",
+                    aspect_ratio: "16:9",
+                    seed: 3456,
                 });
                 
                 loadingStatus.textContent = "GENERATING FOREGROUND LAYER...";
                 const foregroundImg = await websim.imageGen({
-                    prompt: "High-resolution 8-bit pixel art retro game foreground with decorative vines and hanging elements on pure bright white background (#FFFFFF), only elements at top and sides with empty center area, absolutely perfectly tileable horizontally with exactly matching left and right edges for seamless repetition, wide panoramic view, low color palette (4-8 colors)",
-                    width: 1024,
-                    height: 576,
+                    prompt: "8-bit pixel art retro game foreground with decorative vines and hanging elements on pure bright white background (#FFFFFF), only elements at top and sides with empty center area, perfectly tileable horizontally with matching left and right edges, seamless repeating pattern, low color palette (4-8 colors)",
+                    aspect_ratio: "16:9",
+                    seed: 4567,
                 });
+                
+                // Get image dimensions for proper tiling
+                loadingStatus.textContent = "GETTING IMAGE DIMENSIONS...";
+                const bgDimensions = await getImageDimensions(backgroundImg.url);
+                const midBgDimensions = await getImageDimensions(midBackgroundImg.url);
+                const midgroundDimensions = await getImageDimensions(midgroundImg.url);
+                const foregroundDimensions = await getImageDimensions(foregroundImg.url);
+                
+                // Store image widths for proper repeating calculation
+                imageSizes.background = bgDimensions.width;
+                imageSizes.midBackground = midBgDimensions.width;
+                imageSizes.midground = midgroundDimensions.width;
+                imageSizes.foreground = foregroundDimensions.width;
                 
                 loadingStatus.textContent = "PROCESSING TRANSPARENCY...";
                 const processedForeground = await processImageTransparency(foregroundImg.url, "#FFFFFF", 100);
@@ -290,13 +324,12 @@
                 midground.style.backgroundImage = `url(${midgroundImg.url})`;
                 foreground.style.backgroundImage = `url(${processedForeground})`;
                 
-                // Make sure each layer's image is properly loaded for measurement
-                await Promise.all([
-                    loadImage(backgroundImg.url),
-                    loadImage(midBackgroundImg.url),
-                    loadImage(midgroundImg.url),
-                    loadImage(processedForeground)
-                ]);
+                // Ensure correct backgrounds settings for proper tiling
+                const layers = [background, midBackground, midground, foreground];
+                layers.forEach(layer => {
+                    layer.style.backgroundRepeat = "repeat-x";
+                    layer.style.backgroundSize = "auto 100%";
+                });
                 
                 // Hide loading screen
                 loading.style.display = 'none';
@@ -307,16 +340,6 @@
                 console.error("Error generating images:", error);
                 loadingStatus.textContent = "ERROR! PRESS F5 TO RETRY";
             }
-        }
-        
-        // Function to preload an image and return a promise
-        function loadImage(url) {
-            return new Promise((resolve, reject) => {
-                const img = new Image();
-                img.onload = () => resolve(img);
-                img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
-                img.src = url;
-            });
         }
         
         // Handle keyboard input
@@ -330,22 +353,28 @@
         
         // Game loop
         function gameLoop() {
-            // Handle movement
+            // Handle movement - Changed to increment posX when moving right for more intuitive controls
             if (keys['ArrowRight'] || keys['d'] || keys['D']) {
-                posX -= playerSpeed;
+                posX += playerSpeed;
                 player.style.transform = 'scaleX(1)'; // Face right
             }
             if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
-                posX += playerSpeed;
+                posX -= playerSpeed;
                 player.style.transform = 'scaleX(-1)'; // Face left
             }
             
-            // Apply parallax effect using background-position for proper repeating
-            // The modulo operation ensures proper wrapping/repeating of the background images
-            background.style.backgroundPosition = `${(posX * layerSpeeds.background) % 1024}px bottom`;
-            midBackground.style.backgroundPosition = `${(posX * layerSpeeds.midBackground) % 1024}px bottom`;
-            midground.style.backgroundPosition = `${(posX * layerSpeeds.midground) % 1024}px bottom`;
-            foreground.style.backgroundPosition = `${(posX * layerSpeeds.foreground) % 1024}px bottom`;
+            // Apply parallax effect with proper modulo for repeating backgrounds
+            // Use negative positions for correct scrolling direction
+            const bgPos = -(posX * layerSpeeds.background) % imageSizes.background;
+            const midBgPos = -(posX * layerSpeeds.midBackground) % imageSizes.midBackground;
+            const midgroundPos = -(posX * layerSpeeds.midground) % imageSizes.midground;
+            const foregroundPos = -(posX * layerSpeeds.foreground) % imageSizes.foreground;
+            
+            // Apply transforms ensuring backgrounds repeat seamlessly
+            background.style.backgroundPosition = `${bgPos}px bottom`;
+            midBackground.style.backgroundPosition = `${midBgPos}px bottom`;
+            midground.style.backgroundPosition = `${midgroundPos}px bottom`;
+            foreground.style.backgroundPosition = `${foregroundPos}px bottom`;
             
             // Continue the loop
             requestAnimationFrame(gameLoop);
