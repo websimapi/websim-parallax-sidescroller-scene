@@ -184,6 +184,14 @@
             foreground: 1.2
         };
         
+        // Store layer image widths for repeating calculations
+        const layerWidths = {
+            background: 0,
+            midBackground: 0,
+            midground: 0,
+            foreground: 0
+        };
+        
         // DOM Elements
         const background = document.getElementById('background');
         const midBackground = document.getElementById('mid-background');
@@ -256,6 +264,16 @@
             });
         }
         
+        // Function to get image dimensions
+        function getImageDimensions(imageUrl) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve({ width: img.width, height: img.height });
+                img.onerror = () => reject(new Error('Failed to load image'));
+                img.src = imageUrl;
+            });
+        }
+        
         // Generate images for each layer
         async function generateLayers() {
             try {
@@ -301,11 +319,25 @@
                 loadingStatus.textContent = "PROCESSING TRANSPARENCY...";
                 const processedForeground = await processImageTransparency(foregroundImg.url, "#FFFFFF", 100);
                 
+                // Set background images
                 background.style.backgroundImage = `url(${backgroundImg.url})`;
                 midBackground.style.backgroundImage = `url(${midBackgroundImg.url})`;
                 midground.style.backgroundImage = `url(${midgroundImg.url})`;
                 foreground.style.backgroundImage = `url(${processedForeground})`;
                 
+                // Get and store image dimensions for repeating calculations
+                const bgDimensions = await getImageDimensions(backgroundImg.url);
+                const midBgDimensions = await getImageDimensions(midBackgroundImg.url);
+                const midgroundDimensions = await getImageDimensions(midgroundImg.url);
+                const foregroundDimensions = await getImageDimensions(processedForeground);
+                
+                // Store image widths for repeating
+                layerWidths.background = bgDimensions.width;
+                layerWidths.midBackground = midBgDimensions.width;
+                layerWidths.midground = midgroundDimensions.width;
+                layerWidths.foreground = foregroundDimensions.width;
+                
+                // Ensure CSS is set for proper repeating
                 const layers = [background, midBackground, midground, foreground];
                 layers.forEach(layer => {
                     layer.style.backgroundRepeat = "repeat-x";
@@ -339,10 +371,17 @@
                 player.style.transform = 'scaleX(-1)';
             }
             
-            background.style.transform = `translateX(${posX * layerSpeeds.background}px)`;
-            midBackground.style.transform = `translateX(${posX * layerSpeeds.midBackground}px)`;
-            midground.style.transform = `translateX(${posX * layerSpeeds.midground}px)`;
-            foreground.style.transform = `translateX(${posX * layerSpeeds.foreground}px)`;
+            // Calculate background positions ensuring proper wrapping
+            const bgPos = (posX * layerSpeeds.background) % layerWidths.background;
+            const midBgPos = (posX * layerSpeeds.midBackground) % layerWidths.midBackground;
+            const midgPos = (posX * layerSpeeds.midground) % layerWidths.midground;
+            const fgPos = (posX * layerSpeeds.foreground) % layerWidths.foreground;
+            
+            // Apply transforms with the wrapped positions
+            background.style.backgroundPosition = `${bgPos}px bottom`;
+            midBackground.style.backgroundPosition = `${midBgPos}px bottom`;
+            midground.style.backgroundPosition = `${midgPos}px bottom`;
+            foreground.style.backgroundPosition = `${fgPos}px bottom`;
             
             requestAnimationFrame(gameLoop);
         }
