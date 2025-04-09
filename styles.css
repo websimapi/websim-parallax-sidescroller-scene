@@ -1,0 +1,137 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Arial', sans-serif;
+    background-color: #000;
+}
+
+#game-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    will-change: transform;
+    image-rendering: pixelated; /* Makes images look more retro/pixelated */
+    overflow: hidden;
+}
+
+.layer-content {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background-repeat: repeat-x;
+    background-position: 0 bottom;
+    background-size: auto 100%;
+    will-change: transform;
+}
+
+/* Make all layers at least 3x the width to ensure smooth scrolling */
+.layer-content-inner {
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    background-repeat: repeat-x;
+    background-position: 0 bottom;
+    background-size: auto 100%;
+}
+
+#background {
+    z-index: 1;
+}
+
+#mid-background {
+    z-index: 2;
+}
+
+#midground {
+    z-index: 3;
+}
+
+#foreground {
+    z-index: 4;
+    pointer-events: none;
+}
+
+#player {
+    position: absolute;
+    left: 45%;
+    bottom: 20%;
+    width: 40px;
+    height: 64px;
+    background-color: transparent;
+    z-index: 3;
+}
+
+.character {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: transparent;
+    position: relative;
+}
+
+/* Retro pixel character */
+.character svg {
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+}
+
+#loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+    color: white;
+    font-family: 'Courier New', monospace; /* Retro font */
+}
+
+.spinner {
+    border: 5px solid rgba(255, 255, 255, 0.3);
+    border-radius: 0; /* Square for retro feel */
+    border-top: 5px solid #fff;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+#controls {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    z-index: 10;
+    color: white;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 10px;
+    border-radius: 0; /* Square for retro feel */
+    font-family: 'Courier New', monospace; /* Retro font */
+    border: 2px solid #ffffff;
+}
+
+.image-canvas {
+    display: none;
+}
