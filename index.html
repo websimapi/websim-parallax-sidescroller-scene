@@ -25,33 +25,36 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-repeat: repeat-x;
             will-change: transform;
             image-rendering: pixelated; /* Makes images look more retro/pixelated */
+            overflow: hidden;
+        }
+        
+        .layer-content {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            width: 200%; /* Make content wider to ensure smooth wrapping */
+            background-repeat: repeat-x;
+            background-position: 0 bottom;
+            background-size: auto 100%;
+            will-change: transform;
         }
         
         #background {
             z-index: 1;
-            background-position: 0 bottom;
-            background-size: auto 100%;
         }
         
         #mid-background {
             z-index: 2;
-            background-position: 0 bottom;
-            background-size: auto 100%;
         }
         
         #midground {
             z-index: 3;
-            background-position: 0 bottom;
-            background-size: auto 100%;
         }
         
         #foreground {
             z-index: 4;
-            background-position: 0 bottom;
-            background-size: auto 100%;
             pointer-events: none;
         }
         
@@ -133,10 +136,18 @@
 </head>
 <body>
     <div id="game-container">
-        <div id="background" class="layer"></div>
-        <div id="mid-background" class="layer"></div>
-        <div id="midground" class="layer"></div>
-        <div id="foreground" class="layer"></div>
+        <div id="background" class="layer">
+            <div class="layer-content" id="background-content"></div>
+        </div>
+        <div id="mid-background" class="layer">
+            <div class="layer-content" id="mid-background-content"></div>
+        </div>
+        <div id="midground" class="layer">
+            <div class="layer-content" id="midground-content"></div>
+        </div>
+        <div id="foreground" class="layer">
+            <div class="layer-content" id="foreground-content"></div>
+        </div>
         <div id="player">
             <div class="character">
                 <!-- Retro pixel art character -->
@@ -175,6 +186,7 @@
         let posX = 0;
         let playerSpeed = 5;
         let keys = {};
+        let lastTimestamp = 0;
         
         // Layer speeds (different for parallax effect)
         const layerSpeeds = {
@@ -193,10 +205,10 @@
         };
         
         // DOM Elements
-        const background = document.getElementById('background');
-        const midBackground = document.getElementById('mid-background');
-        const midground = document.getElementById('midground');
-        const foreground = document.getElementById('foreground');
+        const background = document.getElementById('background-content');
+        const midBackground = document.getElementById('mid-background-content');
+        const midground = document.getElementById('midground-content');
+        const foreground = document.getElementById('foreground-content');
         const player = document.getElementById('player');
         const loading = document.getElementById('loading');
         const loadingStatus = document.getElementById('loading-status');
@@ -301,7 +313,7 @@
                 
                 loadingStatus.textContent = "GENERATING MIDGROUND LAYER...";
                 const midgroundImg = await websim.imageGen({
-                    prompt: "8-bit pixel art retro game midground with platforms, grass and rocks in classic platformer style, perfectly tileable horizontally with matching left and right edges, seamless repeating pattern, clear pixel art style, Super Mario Bros or Mega Man inspired, low color palette (8-16 colors)",
+                    prompt: "8-bit pixel art retro game midground with platforms, grass and rocks in classic platformer style with some bright white (#FFFFFF) areas for transparency between platforms, perfectly tileable horizontally with matching left and right edges, seamless repeating pattern, clear pixel art style, Super Mario Bros or Mega Man inspired, low color palette (8-16 colors)",
                     aspect_ratio: "16:9",
                     seed: seed
                 });
@@ -318,17 +330,12 @@
                 
                 loadingStatus.textContent = "PROCESSING TRANSPARENCY...";
                 const processedForeground = await processImageTransparency(foregroundImg.url, "#FFFFFF", 100);
-                
-                // Set background images
-                background.style.backgroundImage = `url(${backgroundImg.url})`;
-                midBackground.style.backgroundImage = `url(${midBackgroundImg.url})`;
-                midground.style.backgroundImage = `url(${midgroundImg.url})`;
-                foreground.style.backgroundImage = `url(${processedForeground})`;
+                const processedMidground = await processImageTransparency(midgroundImg.url, "#FFFFFF", 100);
                 
                 // Get and store image dimensions for repeating calculations
                 const bgDimensions = await getImageDimensions(backgroundImg.url);
                 const midBgDimensions = await getImageDimensions(midBackgroundImg.url);
-                const midgroundDimensions = await getImageDimensions(midgroundImg.url);
+                const midgroundDimensions = await getImageDimensions(processedMidground);
                 const foregroundDimensions = await getImageDimensions(processedForeground);
                 
                 // Store image widths for repeating
@@ -337,16 +344,25 @@
                 layerWidths.midground = midgroundDimensions.width;
                 layerWidths.foreground = foregroundDimensions.width;
                 
-                // Ensure CSS is set for proper repeating
-                const layers = [background, midBackground, midground, foreground];
-                layers.forEach(layer => {
-                    layer.style.backgroundRepeat = "repeat-x";
-                    layer.style.backgroundSize = "auto 100%";
-                });
+                // Set background images for each layer content
+                background.style.backgroundImage = `url(${backgroundImg.url})`;
+                midBackground.style.backgroundImage = `url(${midBackgroundImg.url})`;
+                midground.style.backgroundImage = `url(${processedMidground})`;
+                foreground.style.backgroundImage = `url(${processedForeground})`;
+                
+                // Create duplicate backgrounds for seamless scrolling
+                background.style.width = layerWidths.background * 2 + 'px';
+                midBackground.style.width = layerWidths.midBackground * 2 + 'px';
+                midground.style.width = layerWidths.midground * 2 + 'px';
+                foreground.style.width = layerWidths.foreground * 2 + 'px';
                 
                 loading.style.display = 'none';
                 
-                gameLoop();
+                // Start game loop with timestamp
+                requestAnimationFrame(timestamp => {
+                    lastTimestamp = timestamp;
+                    gameLoop(timestamp);
+                });
             } catch (error) {
                 console.error("Error generating images:", error);
                 loadingStatus.textContent = "ERROR! PRESS F5 TO RETRY";
@@ -361,27 +377,34 @@
             keys[e.key] = false;
         });
         
-        function gameLoop() {
+        function gameLoop(timestamp) {
+            // Calculate delta time for smooth movement
+            const deltaTime = timestamp - lastTimestamp;
+            lastTimestamp = timestamp;
+            
+            // Calculate speed adjusted for framerate
+            const adjustedSpeed = playerSpeed * (deltaTime / 16.67); // 60fps base
+            
             if (keys['ArrowRight'] || keys['d'] || keys['D']) {
-                posX -= playerSpeed;
+                posX -= adjustedSpeed;
                 player.style.transform = 'scaleX(1)';
             }
             if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
-                posX += playerSpeed;
+                posX += adjustedSpeed;
                 player.style.transform = 'scaleX(-1)';
             }
             
-            // Calculate background positions ensuring proper wrapping
-            const bgPos = (posX * layerSpeeds.background) % layerWidths.background;
-            const midBgPos = (posX * layerSpeeds.midBackground) % layerWidths.midBackground;
-            const midgPos = (posX * layerSpeeds.midground) % layerWidths.midground;
-            const fgPos = (posX * layerSpeeds.foreground) % layerWidths.foreground;
+            // Ensure smooth wrapping for each layer
+            const wrapBackground = (posX * layerSpeeds.background) % layerWidths.background;
+            const wrapMidBackground = (posX * layerSpeeds.midBackground) % layerWidths.midBackground;
+            const wrapMidground = (posX * layerSpeeds.midground) % layerWidths.midground;
+            const wrapForeground = (posX * layerSpeeds.foreground) % layerWidths.foreground;
             
-            // Apply transforms with the wrapped positions
-            background.style.backgroundPosition = `${bgPos}px bottom`;
-            midBackground.style.backgroundPosition = `${midBgPos}px bottom`;
-            midground.style.backgroundPosition = `${midgPos}px bottom`;
-            foreground.style.backgroundPosition = `${fgPos}px bottom`;
+            // Apply transforms with CSS transform for smoother animation
+            background.style.transform = `translateX(${wrapBackground}px)`;
+            midBackground.style.transform = `translateX(${wrapMidBackground}px)`;
+            midground.style.transform = `translateX(${wrapMidground}px)`;
+            foreground.style.transform = `translateX(${wrapForeground}px)`;
             
             requestAnimationFrame(gameLoop);
         }
