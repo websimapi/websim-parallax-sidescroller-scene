@@ -34,11 +34,21 @@
             position: absolute;
             top: 0;
             height: 100%;
-            width: 200%; /* Make content wider to ensure smooth wrapping */
             background-repeat: repeat-x;
             background-position: 0 bottom;
             background-size: auto 100%;
             will-change: transform;
+        }
+        
+        /* Make all layers at least 3x the width to ensure smooth scrolling */
+        .layer-content-inner {
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-repeat: repeat-x;
+            background-position: 0 bottom;
+            background-size: auto 100%;
         }
         
         #background {
@@ -350,11 +360,21 @@
                 midground.style.backgroundImage = `url(${processedMidground})`;
                 foreground.style.backgroundImage = `url(${processedForeground})`;
                 
-                // Create duplicate backgrounds for seamless scrolling
-                background.style.width = layerWidths.background * 2 + 'px';
-                midBackground.style.width = layerWidths.midBackground * 2 + 'px';
-                midground.style.width = layerWidths.midground * 2 + 'px';
-                foreground.style.width = layerWidths.foreground * 2 + 'px';
+                // Create multiple copies of each layer for truly seamless scrolling
+                // We need 3 copies minimum (one visible, one before, one after)
+                const numberOfCopies = 3;
+                
+                background.style.width = (layerWidths.background * numberOfCopies) + 'px';
+                midBackground.style.width = (layerWidths.midBackground * numberOfCopies) + 'px';
+                midground.style.width = (layerWidths.midground * numberOfCopies) + 'px';
+                foreground.style.width = (layerWidths.foreground * numberOfCopies) + 'px';
+                
+                // Ensure proper positioning for continuous scrolling
+                // Place first copy at starting position (0)
+                background.style.left = '0px';
+                midBackground.style.left = '0px';
+                midground.style.left = '0px';
+                foreground.style.left = '0px';
                 
                 loading.style.display = 'none';
                 
@@ -394,17 +414,32 @@
                 player.style.transform = 'scaleX(-1)';
             }
             
-            // Ensure smooth wrapping for each layer
-            const wrapBackground = (posX * layerSpeeds.background) % layerWidths.background;
-            const wrapMidBackground = (posX * layerSpeeds.midBackground) % layerWidths.midBackground;
-            const wrapMidground = (posX * layerSpeeds.midground) % layerWidths.midground;
-            const wrapForeground = (posX * layerSpeeds.foreground) % layerWidths.foreground;
+            // Improved seamless scrolling logic:
+            // For each layer, calculate the precise position and apply the proper modulo
+            // to create a truly seamless effect
             
-            // Apply transforms with CSS transform for smoother animation
-            background.style.transform = `translateX(${wrapBackground}px)`;
-            midBackground.style.transform = `translateX(${wrapMidBackground}px)`;
-            midground.style.transform = `translateX(${wrapMidground}px)`;
-            foreground.style.transform = `translateX(${wrapForeground}px)`;
+            // Background layer (slowest)
+            const bgOffset = (posX * layerSpeeds.background);
+            const bgModulo = bgOffset % layerWidths.background;
+            
+            // Mid-background layer
+            const midBgOffset = (posX * layerSpeeds.midBackground);
+            const midBgModulo = midBgOffset % layerWidths.midBackground;
+            
+            // Midground layer
+            const midOffset = (posX * layerSpeeds.midground);
+            const midModulo = midOffset % layerWidths.midground;
+            
+            // Foreground layer (fastest)
+            const fgOffset = (posX * layerSpeeds.foreground);
+            const fgModulo = fgOffset % layerWidths.foreground;
+            
+            // Apply transforms using translateX to ensure smooth GPU-accelerated scrolling
+            // translateX takes negative values to move right, which matches our logic
+            background.style.transform = `translateX(${bgModulo}px)`;
+            midBackground.style.transform = `translateX(${midBgModulo}px)`;
+            midground.style.transform = `translateX(${midModulo}px)`;
+            foreground.style.transform = `translateX(${fgModulo}px)`;
             
             requestAnimationFrame(gameLoop);
         }
