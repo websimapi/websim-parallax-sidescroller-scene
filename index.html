@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Parallax Sidescroller Scene</title>
+    <title>Retro Parallax Sidescroller</title>
     <style>
         body {
             margin: 0;
@@ -27,6 +27,7 @@
             height: 100%;
             background-repeat: repeat-x;
             will-change: transform;
+            image-rendering: pixelated; /* Makes images look more retro/pixelated */
         }
         
         #background {
@@ -58,8 +59,8 @@
             position: absolute;
             left: 45%;
             bottom: 20%;
-            width: 50px;
-            height: 80px;
+            width: 40px;
+            height: 64px;
             background-color: transparent;
             z-index: 3;
         }
@@ -70,19 +71,15 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            background-color: #3498db;
-            border-radius: 10px;
+            background-color: transparent;
             position: relative;
         }
 
-        .character::after {
-            content: '';
-            position: absolute;
-            top: -15px;
-            width: 35px;
-            height: 35px;
-            border-radius: 50%;
-            background-color: #3498db;
+        /* Retro pixel character */
+        .character svg {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
         }
         
         #loading {
@@ -98,11 +95,12 @@
             align-items: center;
             z-index: 999;
             color: white;
+            font-family: 'Courier New', monospace; /* Retro font */
         }
         
         .spinner {
             border: 5px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
+            border-radius: 0; /* Square for retro feel */
             border-top: 5px solid #fff;
             width: 50px;
             height: 50px;
@@ -121,9 +119,11 @@
             left: 20px;
             z-index: 10;
             color: white;
-            background-color: rgba(0, 0, 0, 0.5);
+            background-color: rgba(0, 0, 0, 0.7);
             padding: 10px;
-            border-radius: 5px;
+            border-radius: 0; /* Square for retro feel */
+            font-family: 'Courier New', monospace; /* Retro font */
+            border: 2px solid #ffffff;
         }
 
         .image-canvas {
@@ -138,7 +138,24 @@
         <div id="midground" class="layer"></div>
         <div id="foreground" class="layer"></div>
         <div id="player">
-            <div class="character"></div>
+            <div class="character">
+                <!-- Retro pixel art character -->
+                <svg viewBox="0 0 16 24" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Head -->
+                    <rect x="4" y="0" width="8" height="8" fill="#ffccaa"/>
+                    <!-- Eyes -->
+                    <rect x="6" y="2" width="1" height="1" fill="#000000"/>
+                    <rect x="9" y="2" width="1" height="1" fill="#000000"/>
+                    <!-- Body -->
+                    <rect x="4" y="8" width="8" height="8" fill="#ff0000"/>
+                    <!-- Arms -->
+                    <rect x="2" y="8" width="2" height="6" fill="#ffccaa"/>
+                    <rect x="12" y="8" width="2" height="6" fill="#ffccaa"/>
+                    <!-- Legs -->
+                    <rect x="4" y="16" width="3" height="8" fill="#0000ff"/>
+                    <rect x="9" y="16" width="3" height="8" fill="#0000ff"/>
+                </svg>
+            </div>
         </div>
         <div id="controls">
             Use A/D or Left/Right arrows to move
@@ -147,8 +164,8 @@
     
     <div id="loading">
         <div class="spinner"></div>
-        <p>Generating scene layers...</p>
-        <p id="loading-status">Preparing...</p>
+        <p>GENERATING RETRO SCENE...</p>
+        <p id="loading-status">PLEASE WAIT...</p>
     </div>
 
     <canvas id="processCanvas" class="image-canvas"></canvas>
@@ -237,31 +254,31 @@
         // Generate images for each layer
         async function generateLayers() {
             try {
-                loadingStatus.textContent = "Generating background layer...";
+                loadingStatus.textContent = "GENERATING BACKGROUND LAYER...";
                 const backgroundImg = await websim.imageGen({
-                    prompt: "Distant mountains and sky with stars at dusk, low contrast and desaturated colors, side-scrolling game background, peaceful and expansive, solid scene with full coverage",
+                    prompt: "8-bit pixel art retro game background with distant mountains and night sky with stars, low color palette (4-8 colors), perfectly tileable horizontally with matching left and right edges, seamless repeating pattern, NES or SNES style",
                     aspect_ratio: "16:9",
                 });
                 
-                loadingStatus.textContent = "Generating mid-background layer...";
+                loadingStatus.textContent = "GENERATING MID-BACKGROUND LAYER...";
                 const midBackgroundImg = await websim.imageGen({
-                    prompt: "Mid-range scenery with silhouetted pine trees and rock formations, medium distance, side-scrolling game mid-background layer, solid dark shapes against lighter background",
+                    prompt: "8-bit pixel art retro game mid-background with silhouetted pine trees and rock formations, perfectly tileable horizontally with matching left and right edges, seamless repeating pattern, low color palette (4-8 colors), NES or SNES style",
                     aspect_ratio: "16:9",
                 });
                 
-                loadingStatus.textContent = "Generating midground layer...";
+                loadingStatus.textContent = "GENERATING MIDGROUND LAYER...";
                 const midgroundImg = await websim.imageGen({
-                    prompt: "Detailed terrain with platforms, grass, and rocks in a fantasy style, high contrast, clear pathways for a side-scrolling platformer game, no transparency needed",
+                    prompt: "8-bit pixel art retro game midground with platforms, grass and rocks in classic platformer style, perfectly tileable horizontally with matching left and right edges, seamless repeating pattern, clear pixel art style, Super Mario Bros or Mega Man inspired, low color palette (8-16 colors)",
                     aspect_ratio: "16:9",
                 });
                 
-                loadingStatus.textContent = "Generating foreground layer...";
+                loadingStatus.textContent = "GENERATING FOREGROUND LAYER...";
                 const foregroundImg = await websim.imageGen({
-                    prompt: "Decorative vines, branches, and foliage elements with pure bright white background (#FFFFFF) surrounding the elements, foreground elements only at top and sides with large empty white space in center, side-scrolling game foreground overlay",
+                    prompt: "8-bit pixel art retro game foreground with decorative vines and hanging elements on pure bright white background (#FFFFFF), only elements at top and sides with empty center area, perfectly tileable horizontally with matching left and right edges, seamless repeating pattern, low color palette (4-8 colors)",
                     aspect_ratio: "16:9",
                 });
                 
-                loadingStatus.textContent = "Processing foreground transparency...";
+                loadingStatus.textContent = "PROCESSING TRANSPARENCY...";
                 const processedForeground = await processImageTransparency(foregroundImg.url, "#FFFFFF", 100);
                 
                 // Apply images to layers
@@ -270,6 +287,12 @@
                 midground.style.backgroundImage = `url(${midgroundImg.url})`;
                 foreground.style.backgroundImage = `url(${processedForeground})`;
                 
+                // Make sure correct repeat is set for tiling
+                background.style.backgroundRepeat = "repeat-x";
+                midBackground.style.backgroundRepeat = "repeat-x";
+                midground.style.backgroundRepeat = "repeat-x";
+                foreground.style.backgroundRepeat = "repeat-x";
+                
                 // Hide loading screen
                 loading.style.display = 'none';
                 
@@ -277,7 +300,7 @@
                 gameLoop();
             } catch (error) {
                 console.error("Error generating images:", error);
-                loadingStatus.textContent = "Error generating images. Please refresh to try again.";
+                loadingStatus.textContent = "ERROR! PRESS F5 TO RETRY";
             }
         }
         
@@ -295,16 +318,18 @@
             // Handle movement
             if (keys['ArrowRight'] || keys['d'] || keys['D']) {
                 posX -= playerSpeed;
+                player.style.transform = 'scaleX(1)'; // Face right
             }
             if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
                 posX += playerSpeed;
+                player.style.transform = 'scaleX(-1)'; // Face left
             }
             
-            // Apply parallax effect
-            background.style.transform = `translateX(${posX * layerSpeeds.background}px)`;
-            midBackground.style.transform = `translateX(${posX * layerSpeeds.midBackground}px)`;
-            midground.style.transform = `translateX(${posX * layerSpeeds.midground}px)`;
-            foreground.style.transform = `translateX(${posX * layerSpeeds.foreground}px)`;
+            // Apply parallax effect - wrap around seamlessly because of tiling
+            background.style.transform = `translateX(${posX * layerSpeeds.background % 100}px)`;
+            midBackground.style.transform = `translateX(${posX * layerSpeeds.midBackground % 100}px)`;
+            midground.style.transform = `translateX(${posX * layerSpeeds.midground % 100}px)`;
+            foreground.style.transform = `translateX(${posX * layerSpeeds.foreground % 100}px)`;
             
             // Continue the loop
             requestAnimationFrame(gameLoop);
