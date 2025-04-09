@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parallax Sidescroller Scene</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+            background-color: #000;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-repeat: repeat-x;
+            will-change: transform;
+        }
+        
+        #background {
+            z-index: 1;
+            background-position: 0 bottom;
+            background-size: auto 100%;
+        }
+        
+        #mid-background {
+            z-index: 2;
+            background-position: 0 bottom;
+            background-size: auto 100%;
+        }
+        
+        #midground {
+            z-index: 3;
+            background-position: 0 bottom;
+            background-size: auto 100%;
+        }
+        
+        #foreground {
+            z-index: 4;
+            background-position: 0 bottom;
+            background-size: auto 100%;
+            pointer-events: none;
+        }
+        
+        #player {
+            position: absolute;
+            left: 45%;
+            bottom: 20%;
+            width: 50px;
+            height: 80px;
+            background-color: #f00;
+            z-index: 3;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            color: white;
+        }
+        
+        .spinner {
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 5px solid #fff;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 10;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="background" class="layer"></div>
+        <div id="mid-background" class="layer"></div>
+        <div id="midground" class="layer"></div>
+        <div id="foreground" class="layer"></div>
+        <div id="player"></div>
+        <div id="controls">
+            Use A/D or Left/Right arrows to move
+        </div>
+    </div>
+    
+    <div id="loading">
+        <div class="spinner"></div>
+        <p>Generating scene layers...</p>
+        <p id="loading-status">Preparing...</p>
+    </div>
+
+    <script>
+        // Game variables
+        let posX = 0;
+        let playerSpeed = 5;
+        let keys = {};
+        
+        // Layer speeds (different for parallax effect)
+        const layerSpeeds = {
+            background: 0.1,
+            midBackground: 0.3,
+            midground: 0.7,
+            foreground: 1.2
+        };
+        
+        // DOM Elements
+        const background = document.getElementById('background');
+        const midBackground = document.getElementById('mid-background');
+        const midground = document.getElementById('midground');
+        const foreground = document.getElementById('foreground');
+        const player = document.getElementById('player');
+        const loading = document.getElementById('loading');
+        const loadingStatus = document.getElementById('loading-status');
+        
+        // Generate images for each layer
+        async function generateLayers() {
+            try {
+                loadingStatus.textContent = "Generating background layer...";
+                const backgroundImg = await websim.imageGen({
+                    prompt: "Distant mountains and sky with stars at dusk, low contrast and desaturated colors, side-scrolling game background, peaceful and expansive",
+                    aspect_ratio: "16:9",
+                });
+                
+                loadingStatus.textContent = "Generating mid-background layer...";
+                const midBackgroundImg = await websim.imageGen({
+                    prompt: "Mid-range scenery with silhouetted pine trees and rock formations, medium distance, side-scrolling game mid-background layer",
+                    aspect_ratio: "16:9",
+                });
+                
+                loadingStatus.textContent = "Generating midground layer...";
+                const midgroundImg = await websim.imageGen({
+                    prompt: "Detailed terrain with platforms, grass, and rocks in a fantasy style, high contrast, clear pathways for a side-scrolling platformer game",
+                    aspect_ratio: "16:9",
+                });
+                
+                loadingStatus.textContent = "Generating foreground layer...";
+                const foregroundImg = await websim.imageGen({
+                    prompt: "Semi-transparent hanging vines, branches, and foliage elements in the foreground of a side-scrolling game, partial overlay elements",
+                    aspect_ratio: "16:9",
+                });
+                
+                // Apply images to layers
+                background.style.backgroundImage = `url(${backgroundImg.url})`;
+                midBackground.style.backgroundImage = `url(${midBackgroundImg.url})`;
+                midground.style.backgroundImage = `url(${midgroundImg.url})`;
+                foreground.style.backgroundImage = `url(${foregroundImg.url})`;
+                
+                // Hide loading screen
+                loading.style.display = 'none';
+                
+                // Start game loop
+                gameLoop();
+            } catch (error) {
+                console.error("Error generating images:", error);
+                loadingStatus.textContent = "Error generating images. Please refresh to try again.";
+            }
+        }
+        
+        // Handle keyboard input
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        // Game loop
+        function gameLoop() {
+            // Handle movement
+            if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+                posX -= playerSpeed;
+            }
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+                posX += playerSpeed;
+            }
+            
+            // Apply parallax effect
+            background.style.transform = `translateX(${posX * layerSpeeds.background}px)`;
+            midBackground.style.transform = `translateX(${posX * layerSpeeds.midBackground}px)`;
+            midground.style.transform = `translateX(${posX * layerSpeeds.midground}px)`;
+            foreground.style.transform = `translateX(${posX * layerSpeeds.foreground}px)`;
+            
+            // Continue the loop
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Start the game
+        generateLayers();
+    </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
+
