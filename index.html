@@ -4,31 +4,136 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Retro Parallax Sidescroller</title>
-    <link rel="stylesheet" href="styles.css">
-    <script type="importmap">
-    {
-        "imports": {
-            "gameUtils": "./js/gameUtils.js",
-            "imageProcessor": "./js/imageProcessor.js",
-            "sceneGenerator": "./js/sceneGenerator.js"
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+            background-color: #000;
         }
-    }
-    </script>
+        
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-repeat: repeat-x;
+            will-change: transform;
+            image-rendering: pixelated; /* Makes images look more retro/pixelated */
+        }
+        
+        .chunk {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            background-repeat: repeat-x;
+            background-position: 0 bottom;
+            background-size: auto 100%;
+        }
+        
+        #player {
+            position: absolute;
+            left: 45%;
+            bottom: 20%;
+            width: 40px;
+            height: 64px;
+            background-color: transparent;
+            z-index: 5;
+        }
+
+        .character {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: transparent;
+            position: relative;
+        }
+
+        /* Retro pixel character */
+        .character svg {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            color: white;
+            font-family: 'Courier New', monospace; /* Retro font */
+        }
+        
+        .spinner {
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-radius: 0; /* Square for retro feel */
+            border-top: 5px solid #fff;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 10;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 0; /* Square for retro feel */
+            font-family: 'Courier New', monospace; /* Retro font */
+            border: 2px solid #ffffff;
+        }
+
+        #debug-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 0;
+            font-family: 'Courier New', monospace;
+            border: 2px solid #ffffff;
+        }
+
+        .image-canvas {
+            display: none;
+        }
+    </style>
 </head>
 <body>
     <div id="game-container">
-        <div id="background" class="layer">
-            <div class="layer-content" id="background-content"></div>
-        </div>
-        <div id="mid-background" class="layer">
-            <div class="layer-content" id="mid-background-content"></div>
-        </div>
-        <div id="midground" class="layer">
-            <div class="layer-content" id="midground-content"></div>
-        </div>
-        <div id="foreground" class="layer">
-            <div class="layer-content" id="foreground-content"></div>
-        </div>
+        <div id="background" class="layer"></div>
+        <div id="mid-background" class="layer"></div>
+        <div id="midground" class="layer"></div>
+        <div id="foreground" class="layer"></div>
         <div id="player">
             <div class="character">
                 <!-- Retro pixel art character -->
@@ -52,8 +157,9 @@
         <div id="controls">
             Use A/D or Left/Right arrows to move
         </div>
-        <div id="area-transition" class="hidden">
-            <div class="transition-text">Entering new area...</div>
+        <div id="debug-info">
+            Chunk: <span id="chunk-info">0</span><br>
+            Position: <span id="position-info">0</span>
         </div>
     </div>
     
@@ -65,8 +171,300 @@
 
     <canvas id="processCanvas" class="image-canvas"></canvas>
 
-    <script type="module" src="js/game.js"></script>
+    <script>
+        // Game variables
+        let posX = 0;
+        let worldPos = 0;
+        let playerSpeed = 5;
+        let keys = {};
+        let currentChunk = 0;
+        let loadingNewChunk = false;
+        
+        // Layer speeds (different for parallax effect)
+        const layerSpeeds = {
+            background: 0.1,
+            midBackground: 0.3,
+            midground: 0.7,
+            foreground: 1.2
+        };
+        
+        // Chunk system
+        const chunkWidth = window.innerWidth * 2; // Each chunk is twice the screen width
+        const chunksToKeep = 3; // Number of chunks to keep in memory (previous, current, next)
+        const chunkLoadThreshold = 0.7; // Load new chunk when player is 70% through current chunk
+        
+        // Store generated chunks
+        const chunks = {
+            background: {},
+            midBackground: {},
+            midground: {},
+            foreground: {}
+        };
+        
+        // DOM Elements
+        const gameContainer = document.getElementById('game-container');
+        const background = document.getElementById('background');
+        const midBackground = document.getElementById('mid-background');
+        const midground = document.getElementById('midground');
+        const foreground = document.getElementById('foreground');
+        const player = document.getElementById('player');
+        const loading = document.getElementById('loading');
+        const loadingStatus = document.getElementById('loading-status');
+        const processCanvas = document.getElementById('processCanvas');
+        const ctx = processCanvas.getContext('2d');
+        const chunkInfo = document.getElementById('chunk-info');
+        const positionInfo = document.getElementById('position-info');
+        
+        // Function to process image and make background transparent
+        async function processImageTransparency(imageUrl, bgColor = "#FFFFFF", tolerance = 60) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = "Anonymous";
+                img.onload = function() {
+                    processCanvas.width = img.width;
+                    processCanvas.height = img.height;
+                    
+                    // Draw the image to canvas
+                    ctx.drawImage(img, 0, 0);
+                    
+                    // Get the image data
+                    const imageData = ctx.getImageData(0, 0, processCanvas.width, processCanvas.height);
+                    const data = imageData.data;
+                    
+                    // Parse background color
+                    const r1 = parseInt(bgColor.slice(1, 3), 16);
+                    const g1 = parseInt(bgColor.slice(3, 5), 16);
+                    const b1 = parseInt(bgColor.slice(5, 7), 16);
+                    
+                    // Replace the background color with transparency
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        
+                        // Calculate color distance using Euclidean distance
+                        const distance = Math.sqrt(
+                            Math.pow(r - r1, 2) +
+                            Math.pow(g - g1, 2) +
+                            Math.pow(b - b1, 2)
+                        );
+                        
+                        // If the color is close to the background color, make it transparent
+                        if (distance < tolerance) {
+                            data[i + 3] = 0; // Alpha channel
+                        }
+                    }
+                    
+                    // Put the modified image data back
+                    ctx.putImageData(imageData, 0, 0);
+                    
+                    // Convert canvas to data URL
+                    const dataUrl = processCanvas.toDataURL('image/png');
+                    resolve(dataUrl);
+                };
+                
+                img.onerror = function() {
+                    reject(new Error('Failed to load image'));
+                };
+                
+                img.src = imageUrl;
+            });
+        }
+        
+        // Generate a single layer for a specific chunk
+        async function generateLayer(layer, chunkIndex, seed) {
+            let prompt = "";
+            let aspectRatio = "21:9"; // More panoramic aspect ratio
+            
+            switch(layer) {
+                case "background":
+                    prompt = `8-bit pixel art retro game background with distant mountains and ${chunkIndex % 2 === 0 ? 'night sky with stars' : 'sunset with gradients'}, low color palette (4-8 colors), perfectly tileable horizontally with matching left and right edges, seamless repeating pattern, NES or SNES style, wide panoramic view`;
+                    break;
+                case "midBackground":
+                    prompt = `8-bit pixel art retro game mid-background with silhouetted ${chunkIndex % 3 === 0 ? 'pine trees' : chunkIndex % 3 === 1 ? 'ruins and ancient monuments' : 'rock formations and hills'} and rock formations, perfectly tileable horizontally with matching left and right edges, seamless repeating pattern, low color palette (4-8 colors), NES or SNES style, wide panoramic view`;
+                    break;
+                case "midground":
+                    prompt = `8-bit pixel art retro game midground with platforms, ${chunkIndex % 4 === 0 ? 'grass and rocks' : chunkIndex % 4 === 1 ? 'metal and industrial structures' : chunkIndex % 4 === 2 ? 'sand and desert elements' : 'snow and ice formations'} in classic platformer style, perfectly tileable horizontally with matching left and right edges, seamless repeating pattern, clear pixel art style, Super Mario Bros or Mega Man inspired, low color palette (8-16 colors), wide panoramic view`;
+                    break;
+                case "foreground":
+                    prompt = `8-bit pixel art retro game foreground with decorative ${chunkIndex % 2 === 0 ? 'vines and hanging elements' : 'ruins and debris'} on pure bright white background (#FFFFFF), only elements at top and sides with empty center area, perfectly tileable horizontally with matching left and right edges, seamless repeating pattern, low color palette (4-8 colors), wide panoramic view`;
+                    break;
+            }
+            
+            try {
+                const image = await websim.imageGen({
+                    prompt: prompt,
+                    aspect_ratio: aspectRatio,
+                    seed: seed || (chunkIndex * 10 + Object.keys(layer).length)
+                });
+                
+                if (layer === "foreground") {
+                    return await processImageTransparency(image.url, "#FFFFFF", 100);
+                }
+                
+                return image.url;
+            } catch (error) {
+                console.error(`Error generating ${layer} for chunk ${chunkIndex}:`, error);
+                // Return a fallback color in case of error
+                return `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%23${layer === 'background' ? '000033' : layer === 'midBackground' ? '003366' : layer === 'midground' ? '006699' : '009933'}"/></svg>`;
+            }
+        }
+        
+        // Create a chunk element and add it to the layer
+        function createChunkElement(layer, chunkIndex, imageUrl) {
+            const chunkElement = document.createElement('div');
+            chunkElement.className = 'chunk';
+            chunkElement.id = `${layer}-chunk-${chunkIndex}`;
+            chunkElement.style.backgroundImage = `url(${imageUrl})`;
+            chunkElement.style.width = `${chunkWidth}px`;
+            chunkElement.style.left = `${chunkIndex * chunkWidth}px`;
+            chunkElement.style.zIndex = layer === 'background' ? 1 : 
+                                         layer === 'midBackground' ? 2 : 
+                                         layer === 'midground' ? 3 : 4;
+            
+            document.getElementById(layer === 'midBackground' ? 'mid-background' : layer).appendChild(chunkElement);
+            return chunkElement;
+        }
+        
+        // Generate or retrieve a chunk for a specific layer and index
+        async function getChunk(layer, chunkIndex) {
+            const layerKey = layer === 'mid-background' ? 'midBackground' : layer;
+            
+            // Check if chunk already exists
+            if (chunks[layerKey][chunkIndex]) {
+                return chunks[layerKey][chunkIndex];
+            }
+            
+            // Generate new chunk
+            const imageUrl = await generateLayer(layerKey, chunkIndex);
+            chunks[layerKey][chunkIndex] = imageUrl;
+            
+            return imageUrl;
+        }
+        
+        // Load chunks around the current chunk
+        async function loadChunksAround(chunkIndex) {
+            if (loadingNewChunk) return;
+            loadingNewChunk = true;
+            
+            const chunksToLoad = [chunkIndex - 1, chunkIndex, chunkIndex + 1];
+            const layerNames = ['background', 'mid-background', 'midground', 'foreground'];
+            
+            try {
+                // Load each chunk for each layer
+                for (const layer of layerNames) {
+                    for (const idx of chunksToLoad) {
+                        if (idx < 0) continue; // Don't load chunks before the start
+                        
+                        const existingChunk = document.getElementById(`${layer}-chunk-${idx}`);
+                        if (!existingChunk) {
+                            const imageUrl = await getChunk(layer, idx);
+                            createChunkElement(layer, idx, imageUrl);
+                        }
+                    }
+                }
+                
+                // Clean up old chunks that are too far away
+                for (const layer of layerNames) {
+                    const chunks = document.querySelectorAll(`#${layer} .chunk`);
+                    chunks.forEach(chunk => {
+                        const chunkId = parseInt(chunk.id.split('-').pop());
+                        if (chunkId < chunkIndex - 1 || chunkId > chunkIndex + 1) {
+                            chunk.remove();
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error("Error loading chunks:", error);
+            } finally {
+                loadingNewChunk = false;
+            }
+        }
+        
+        // Initialize the first chunks
+        async function initializeGame() {
+            try {
+                loadingStatus.textContent = "GENERATING INITIAL WORLD...";
+                await loadChunksAround(0);
+                
+                // Hide loading screen
+                loading.style.display = 'none';
+                
+                // Start game loop
+                gameLoop();
+            } catch (error) {
+                console.error("Error initializing game:", error);
+                loadingStatus.textContent = "ERROR! PRESS F5 TO RETRY";
+            }
+        }
+        
+        // Handle keyboard input
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        // Game loop
+        function gameLoop() {
+            let moveX = 0;
+            
+            // Handle movement
+            if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+                moveX = -playerSpeed;
+                player.style.transform = 'scaleX(1)'; // Face right
+            }
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+                moveX = playerSpeed;
+                player.style.transform = 'scaleX(-1)'; // Face left
+            }
+            
+            // Update position
+            posX += moveX;
+            worldPos -= moveX; // World position moves opposite to the visual movement
+            
+            // Calculate current chunk based on world position
+            const newChunk = Math.floor(worldPos / chunkWidth);
+            
+            // Check if we need to load new chunks
+            if (newChunk !== currentChunk) {
+                currentChunk = newChunk;
+                loadChunksAround(currentChunk);
+            } else {
+                // Check if we're approaching the edge of the current chunk
+                const positionInChunk = worldPos % chunkWidth;
+                const normalizedPosition = positionInChunk / chunkWidth;
+                
+                if (normalizedPosition > chunkLoadThreshold && moveX < 0) {
+                    // Approaching right edge, load next chunk
+                    loadChunksAround(currentChunk + 1);
+                } else if (normalizedPosition < (1 - chunkLoadThreshold) && moveX > 0 && currentChunk > 0) {
+                    // Approaching left edge, load previous chunk
+                    loadChunksAround(currentChunk - 1);
+                }
+            }
+            
+            // Apply parallax effect to each layer
+            const layers = ['background', 'mid-background', 'midground', 'foreground'];
+            layers.forEach(layer => {
+                const layerElement = document.getElementById(layer);
+                const speed = layerSpeeds[layer === 'mid-background' ? 'midBackground' : layer];
+                layerElement.style.transform = `translateX(${posX * speed}px)`;
+            });
+            
+            // Update debug info
+            chunkInfo.textContent = currentChunk;
+            positionInfo.textContent = Math.floor(worldPos);
+            
+            // Continue the loop
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Start the game
+        initializeGame();
+    </script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
-
