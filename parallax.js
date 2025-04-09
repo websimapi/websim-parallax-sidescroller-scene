@@ -3,7 +3,6 @@ let posX = 0;
 let playerSpeed = 5;
 let keys = {};
 let lastTimestamp = 0;
-let gameReady = false;
 
 // Layer speeds (different for parallax effect)
 const layerSpeeds = {
@@ -21,33 +20,16 @@ const layerWidths = {
     foreground: 0
 };
 
-// Store layer content elements
-const layers = {
-    background: null,
-    midBackground: null,
-    midground: null,
-    foreground: null
-};
-
 // DOM Elements
-let player;
-let loading;
-let loadingStatus;
-let processCanvas;
-let ctx;
-
-// Initialize DOM references after page load
-function initDomReferences() {
-    layers.background = document.getElementById('background-content');
-    layers.midBackground = document.getElementById('mid-background-content');
-    layers.midground = document.getElementById('midground-content');
-    layers.foreground = document.getElementById('foreground-content');
-    player = document.getElementById('player');
-    loading = document.getElementById('loading');
-    loadingStatus = document.getElementById('loading-status');
-    processCanvas = document.getElementById('processCanvas');
-    ctx = processCanvas.getContext('2d');
-}
+const background = document.getElementById('background-content');
+const midBackground = document.getElementById('mid-background-content');
+const midground = document.getElementById('midground-content');
+const foreground = document.getElementById('foreground-content');
+const player = document.getElementById('player');
+const loading = document.getElementById('loading');
+const loadingStatus = document.getElementById('loading-status');
+const processCanvas = document.getElementById('processCanvas');
+const ctx = processCanvas.getContext('2d');
 
 // Function to create a delay
 function sleep(ms) {
@@ -120,6 +102,26 @@ function getImageDimensions(imageUrl) {
     });
 }
 
+// Function to prepare each layer with the correct repeating structure
+function prepareLayer(layerElement, imageWidth, numberOfCopies = 5) {
+    // Clear any existing content
+    layerElement.innerHTML = '';
+    
+    // Create multiple copies of the background
+    for (let i = 0; i < numberOfCopies; i++) {
+        const copy = document.createElement('div');
+        copy.className = 'layer-content-inner';
+        copy.style.width = imageWidth + 'px';
+        copy.style.left = (i * imageWidth) + 'px';
+        layerElement.appendChild(copy);
+    }
+    
+    // Set the total width to accommodate all copies
+    layerElement.style.width = (imageWidth * numberOfCopies) + 'px';
+    
+    return imageWidth * numberOfCopies;
+}
+
 // Generate images for each layer
 async function generateLayers() {
     try {
@@ -178,10 +180,22 @@ async function generateLayers() {
         layerWidths.midground = midgroundDimensions.width;
         layerWidths.foreground = foregroundDimensions.width;
         
-        setupLayers(backgroundImg.url, midBackgroundImg.url, processedMidground, processedForeground);
+        // Apply background images to all layers
+        background.style.backgroundImage = `url(${backgroundImg.url})`;
+        midBackground.style.backgroundImage = `url(${midBackgroundImg.url})`;
+        midground.style.backgroundImage = `url(${processedMidground})`;
+        foreground.style.backgroundImage = `url(${processedForeground})`;
+        
+        // Use more copies to ensure the player never reaches the end
+        const numberOfCopies = 5;
+        
+        // Set the width of each layer to be a multiple of the image width
+        background.style.width = (layerWidths.background * numberOfCopies) + 'px';
+        midBackground.style.width = (layerWidths.midBackground * numberOfCopies) + 'px';
+        midground.style.width = (layerWidths.midground * numberOfCopies) + 'px';
+        foreground.style.width = (layerWidths.foreground * numberOfCopies) + 'px';
         
         loading.style.display = 'none';
-        gameReady = true;
         
         // Start game loop with timestamp
         requestAnimationFrame(timestamp => {
@@ -194,45 +208,17 @@ async function generateLayers() {
     }
 }
 
-// Setup layer images and create multiple copies for seamless scrolling
-function setupLayers(backgroundUrl, midBackgroundUrl, midgroundUrl, foregroundUrl) {
-    // Set background images for each layer content
-    layers.background.style.backgroundImage = `url(${backgroundUrl})`;
-    layers.midBackground.style.backgroundImage = `url(${midBackgroundUrl})`;
-    layers.midground.style.backgroundImage = `url(${midgroundUrl})`;
-    layers.foreground.style.backgroundImage = `url(${foregroundUrl})`;
-    
-    // Calculate the number of copies needed (based on screen width)
-    const screenWidth = window.innerWidth;
-    const numberOfCopies = Math.max(5, Math.ceil((screenWidth * 3) / Math.min(
-        layerWidths.background, 
-        layerWidths.midBackground,
-        layerWidths.midground,
-        layerWidths.foreground
-    )));
-    
-    // Create multiple copies of each layer for truly seamless scrolling
-    layers.background.style.width = (layerWidths.background * numberOfCopies) + 'px';
-    layers.midBackground.style.width = (layerWidths.midBackground * numberOfCopies) + 'px';
-    layers.midground.style.width = (layerWidths.midground * numberOfCopies) + 'px';
-    layers.foreground.style.width = (layerWidths.foreground * numberOfCopies) + 'px';
-}
-
 // Input handling
-function setupInputHandlers() {
-    window.addEventListener('keydown', (e) => {
-        keys[e.key] = true;
-    });
-    
-    window.addEventListener('keyup', (e) => {
-        keys[e.key] = false;
-    });
-}
+window.addEventListener('keydown', (e) => {
+    keys[e.key] = true;
+});
 
-// Main game loop
+window.addEventListener('keyup', (e) => {
+    keys[e.key] = false;
+});
+
+// Improved game loop with seamless scrolling
 function gameLoop(timestamp) {
-    if (!gameReady) return;
-    
     // Calculate delta time for smooth movement
     const deltaTime = timestamp - lastTimestamp;
     lastTimestamp = timestamp;
@@ -249,38 +235,30 @@ function gameLoop(timestamp) {
         player.style.transform = 'scaleX(-1)';
     }
     
-    // Fixed smooth scrolling logic to prevent jumping at edges
-    updateLayerPosition('background', layerSpeeds.background);
-    updateLayerPosition('midBackground', layerSpeeds.midBackground);
-    updateLayerPosition('midground', layerSpeeds.midground);
-    updateLayerPosition('foreground', layerSpeeds.foreground);
+    // FIXED: Improved seamless scrolling with precision calculations
+    
+    // For each layer, calculate the exact position in pixels
+    // Use negative posX for right movement, positive for left movement
+    
+    // Calculate positions for each layer based on parallax speeds
+    const bgX = (posX * layerSpeeds.background) % layerWidths.background;
+    const midBgX = (posX * layerSpeeds.midBackground) % layerWidths.midBackground;
+    const midX = (posX * layerSpeeds.midground) % layerWidths.midground;
+    const fgX = (posX * layerSpeeds.foreground) % layerWidths.foreground;
+    
+    // Ensure we get a smooth transition at the seams by using the decimal remainder
+    // This fixes the "jumping" effect that can happen with integer positions
+    
+    background.style.transform = `translateX(${bgX}px)`;
+    midBackground.style.transform = `translateX(${midBgX}px)`;
+    midground.style.transform = `translateX(${midX}px)`;
+    foreground.style.transform = `translateX(${fgX}px)`;
+    
+    // When a layer gets close to its edge, we need to reposition it to create
+    // the illusion of infinite scrolling - this is handled by the modulo operation
     
     requestAnimationFrame(gameLoop);
 }
 
-// Improved layer position update function to prevent jumps
-function updateLayerPosition(layerName, speed) {
-    const layer = layers[layerName];
-    const layerWidth = layerWidths[layerName];
-    
-    // Calculate raw offset based on position and speed
-    const offset = (posX * speed) % layerWidth;
-    
-    // Apply transform using translateX for smooth scrolling
-    // For negative offsets, we need to adjust to prevent jumps
-    // by adding the layer width and then using modulo again
-    const smoothOffset = offset < 0 ? layerWidth + offset : offset;
-    
-    // Apply the transform
-    layer.style.transform = `translateX(${smoothOffset}px)`;
-}
-
 // Initialize the game
-function init() {
-    initDomReferences();
-    setupInputHandlers();
-    generateLayers();
-}
-
-// Start the game when the DOM is loaded
-document.addEventListener('DOMContentLoaded', init);
+generateLayers();
