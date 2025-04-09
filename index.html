@@ -287,11 +287,12 @@
                 midground.style.backgroundImage = `url(${midgroundImg.url})`;
                 foreground.style.backgroundImage = `url(${processedForeground})`;
                 
-                // Make sure correct repeat is set for tiling
-                background.style.backgroundRepeat = "repeat-x";
-                midBackground.style.backgroundRepeat = "repeat-x";
-                midground.style.backgroundRepeat = "repeat-x";
-                foreground.style.backgroundRepeat = "repeat-x";
+                // Ensure correct backgrounds settings for proper tiling
+                const layers = [background, midBackground, midground, foreground];
+                layers.forEach(layer => {
+                    layer.style.backgroundRepeat = "repeat-x";
+                    layer.style.backgroundSize = "auto 100%";
+                });
                 
                 // Hide loading screen
                 loading.style.display = 'none';
@@ -325,11 +326,11 @@
                 player.style.transform = 'scaleX(-1)'; // Face left
             }
             
-            // Apply parallax effect - wrap around seamlessly because of tiling
-            background.style.transform = `translateX(${posX * layerSpeeds.background % 100}px)`;
-            midBackground.style.transform = `translateX(${posX * layerSpeeds.midBackground % 100}px)`;
-            midground.style.transform = `translateX(${posX * layerSpeeds.midground % 100}px)`;
-            foreground.style.transform = `translateX(${posX * layerSpeeds.foreground % 100}px)`;
+            // Apply parallax effect without modulo to allow continuous scrolling
+            background.style.transform = `translateX(${posX * layerSpeeds.background}px)`;
+            midBackground.style.transform = `translateX(${posX * layerSpeeds.midBackground}px)`;
+            midground.style.transform = `translateX(${posX * layerSpeeds.midground}px)`;
+            foreground.style.transform = `translateX(${posX * layerSpeeds.foreground}px)`;
             
             // Continue the loop
             requestAnimationFrame(gameLoop);
